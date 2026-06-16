@@ -9,7 +9,8 @@ import { db, betsTable, matchesTable, usersTable, settingsTable } from "../db.js
 import { getOrCreateUser } from "../utils/getOrCreateUser.js";
 import { updateLiveEmbed } from "../utils/liveEmbed.js";
 import { handleCouponButton, handleCouponModal, slashCoupon } from "../slash/coupon.js";
-import { buildMatchEmbed } from "../slash/matchs.js";
+import { buildMatchEmbed, fetchMatchImageBuffer } from "../slash/matchs.js";
+import { AttachmentBuilder } from "discord.js";
 
 import { slashHelp } from "../slash/help.js";
 import { slashMatchs } from "../slash/matchs.js";
@@ -198,8 +199,20 @@ async function refreshMatchCard(client: import("discord.js").Client, match: type
     const channel = await client.channels.fetch(freshMatch.cardChannelId!);
     if (!channel || !channel.isTextBased()) return;
     const msg = await (channel as TextChannel).messages.fetch(freshMatch.cardMessageId!);
-    const { embed, row } = buildMatchEmbed(freshMatch);
-    await msg.edit({ embeds: [embed], components: [row] });
+
+    const imgBuf = await fetchMatchImageBuffer(freshMatch.id);
+    const { embed, row } = buildMatchEmbed(freshMatch, !!imgBuf);
+
+    const editOptions: Parameters<typeof msg.edit>[0] = {
+      embeds: [embed],
+      components: [row],
+      attachments: [],
+    };
+    if (imgBuf) {
+      editOptions.files = [new AttachmentBuilder(imgBuf, { name: "match.png" })];
+    }
+
+    await msg.edit(editOptions);
   } catch (e) {
     console.error("[refreshMatchCard]", e);
   }

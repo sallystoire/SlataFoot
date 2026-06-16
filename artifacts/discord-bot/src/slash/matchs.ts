@@ -1,13 +1,18 @@
 import {
-  EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
+  EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder,
   type ChatInputCommandInteraction, type TextChannel,
 } from "discord.js";
 import { eq } from "drizzle-orm";
 import { db, matchesTable } from "../db.js";
 import { getApiBase } from "../utils/apiBase.js";
 
-export function buildMatchEmbed(match: typeof matchesTable.$inferSelect): { embed: EmbedBuilder; row: ActionRowBuilder<ButtonBuilder> } {
-  const imageUrl = `${getApiBase()}/api/match-image/${match.id}?t=${Date.now()}`;
+export function buildMatchEmbed(
+  match: typeof matchesTable.$inferSelect,
+  useAttachment = false,
+): { embed: EmbedBuilder; row: ActionRowBuilder<ButtonBuilder> } {
+  const imageUrl = useAttachment
+    ? "attachment://match.png"
+    : `${getApiBase()}/api/match-image/${match.id}?t=${Date.now()}`;
 
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
@@ -32,14 +37,40 @@ export function buildMatchEmbed(match: typeof matchesTable.$inferSelect): { embe
   return { embed, row };
 }
 
+export async function fetchMatchImageBuffer(matchId: number): Promise<Buffer | null> {
+  try {
+    const url = `${getApiBase()}/api/match-image/${matchId}?t=${Date.now()}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+    if (!res.ok) {
+      console.error(`[fetchMatchImage] HTTP ${res.status} for match #${matchId}`);
+      return null;
+    }
+    return Buffer.from(await res.arrayBuffer());
+  } catch (e) {
+    console.error(`[fetchMatchImage] match #${matchId}`, e);
+    return null;
+  }
+}
+
 export async function sendMatchCard(
   channel: ChatInputCommandInteraction["channel"],
   match: typeof matchesTable.$inferSelect,
 ) {
   if (!channel || !channel.isTextBased()) return;
 
-  const { embed, row } = buildMatchEmbed(match);
-  const msg = await (channel as TextChannel).send({ embeds: [embed], components: [row] });
+  const imgBuf = await fetchMatchImageBuffer(match.id);
+  const { embed, row } = buildMatchEmbed(match, !!imgBuf);
+
+  const msgOptions: Parameters<TextChannel["send"]>[0] = {
+    embeds: [embed],
+    components: [row],
+  };
+
+  if (imgBuf) {
+    msgOptions.files = [new AttachmentBuilder(imgBuf, { name: "match.png" })];
+  }
+
+  const msg = await (channel as TextChannel).send(msgOptions);
 
   await db.update(matchesTable)
     .set({ cardMessageId: msg.id, cardChannelId: channel.id })

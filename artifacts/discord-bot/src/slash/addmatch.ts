@@ -1,9 +1,9 @@
 import {
-  EmbedBuilder, type ChatInputCommandInteraction,
+  EmbedBuilder, AttachmentBuilder, type ChatInputCommandInteraction, type TextChannel,
 } from "discord.js";
 import { eq } from "drizzle-orm";
 import { db, matchesTable, scorersTable } from "../db.js";
-import { sendMatchCard, buildMatchEmbed } from "./matchs.js";
+import { sendMatchCard, buildMatchEmbed, fetchMatchImageBuffer } from "./matchs.js";
 import { getApiBase } from "../utils/apiBase.js";
 
 const TEAM_COUNTRY: Record<string, string> = {
@@ -162,9 +162,18 @@ export async function slashEditmatch(i: ChatInputCommandInteraction) {
     try {
       const channel = await i.client.channels.fetch(updated.cardChannelId);
       if (channel && channel.isTextBased()) {
-        const msg = await (channel as import("discord.js").TextChannel).messages.fetch(updated.cardMessageId);
-        const { embed: cardEmbed, row } = buildMatchEmbed(updated);
-        await msg.edit({ embeds: [cardEmbed], components: [row] });
+        const msg = await (channel as TextChannel).messages.fetch(updated.cardMessageId);
+        const imgBuf = await fetchMatchImageBuffer(updated.id);
+        const { embed: cardEmbed, row } = buildMatchEmbed(updated, !!imgBuf);
+        const editOptions: Parameters<typeof msg.edit>[0] = {
+          embeds: [cardEmbed],
+          components: [row],
+          attachments: [],
+        };
+        if (imgBuf) {
+          editOptions.files = [new AttachmentBuilder(imgBuf, { name: "match.png" })];
+        }
+        await msg.edit(editOptions);
       }
     } catch (e) {
       console.error("[editmatch card refresh]", e);
