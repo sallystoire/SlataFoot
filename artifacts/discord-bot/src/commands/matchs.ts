@@ -1,6 +1,14 @@
-import { EmbedBuilder, type Message } from "discord.js";
+import {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  type Message,
+} from "discord.js";
 import { db, matchesTable } from "../db.js";
 import { eq } from "drizzle-orm";
+
+const API_BASE = `https://${process.env.REPLIT_DOMAINS}`;
 
 export async function matchsCommand(message: Message) {
   const matches = await db.query.matchesTable.findMany({
@@ -9,37 +17,38 @@ export async function matchsCommand(message: Message) {
   });
 
   if (matches.length === 0) {
-    return message.reply("❌ Aucun match disponible pour le moment. Un admin peut en ajouter avec `-addmatch`.");
+    return message.reply(
+      "❌ Aucun match disponible. Un admin peut en ajouter avec `-addmatch`."
+    );
   }
 
-  const embed = new EmbedBuilder()
-    .setTitle("⚽ Matchs Disponibles")
-    .setColor(0x2ecc71)
-    .setDescription("Utilise `-mise [équipe ou 'nul'] [montant]` pour parier !");
+  const sentMsg = await message.reply("⏳ Chargement des matchs...");
 
-  for (const match of matches.slice(0, 10)) {
-    const dateStr = new Date(match.matchDate).toLocaleString("fr-FR", {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  for (const match of matches.slice(0, 5)) {
+    const imageUrl = `${API_BASE}/api/match-image/${match.id}?t=${Date.now()}`;
 
-    embed.addFields({
-      name: `🆔 #${match.id} | ${match.homeTeamEmoji} ${match.homeTeam} vs ${match.awayTeamEmoji} ${match.awayTeam}`,
-      value: [
-        `📅 **${dateStr}** — ${match.competition}`,
-        ``,
-        `| 🏠 **${match.homeTeam}** | ⚖️ **Match Nul** | ✈️ **${match.awayTeam}** |`,
-        `| :---: | :---: | :---: |`,
-        `| \`x${match.homeOdds.toFixed(2)}\` | \`x${match.drawOdds.toFixed(2)}\` | \`x${match.awayOdds.toFixed(2)}\` |`,
-      ].join("\n"),
-      inline: false,
-    });
+    const embed = new EmbedBuilder()
+      .setColor(0x5865f2)
+      .setImage(imageUrl)
+      .setFooter({ text: `Match #${match.id} • ${match.competition} • Clique sur un bouton pour parier` });
+
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`bet_home_${match.id}`)
+        .setLabel(`🏠 ${match.homeTeam}  x${match.homeOdds.toFixed(2)}`)
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(`bet_draw_${match.id}`)
+        .setLabel(`⚖️ Match Nul  x${match.drawOdds.toFixed(2)}`)
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`bet_away_${match.id}`)
+        .setLabel(`✈️ ${match.awayTeam}  x${match.awayOdds.toFixed(2)}`)
+        .setStyle(ButtonStyle.Danger),
+    );
+
+    await message.channel.send({ embeds: [embed], components: [row] });
   }
 
-  embed.setFooter({ text: `${matches.length} match(s) disponible(s)` }).setTimestamp();
-
-  await message.reply({ embeds: [embed] });
+  await sentMsg.delete().catch(() => {});
 }

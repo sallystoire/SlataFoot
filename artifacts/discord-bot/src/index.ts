@@ -1,6 +1,7 @@
 import { Client, GatewayIntentBits, Partials } from "discord.js";
 import { handleMessageCreate } from "./events/messageCreate.js";
 import { handleVoiceStateUpdate } from "./events/voiceStateUpdate.js";
+import { handleInteractionCreate } from "./events/interactionCreate.js";
 import { startVoiceCoinLoop } from "./voiceCoins.js";
 import { db, usersTable, settingsTable, matchesTable, scorersTable } from "./db.js";
 import { eq } from "drizzle-orm";
@@ -26,6 +27,7 @@ client.once("clientReady", async () => {
 
 client.on("messageCreate", handleMessageCreate);
 client.on("voiceStateUpdate", handleVoiceStateUpdate);
+client.on("interactionCreate", handleInteractionCreate);
 
 client.on("error", (err) => {
   console.error("[Discord Error]", err);
