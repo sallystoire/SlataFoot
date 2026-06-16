@@ -317,20 +317,30 @@ async function generateMatchPng(matchId: number): Promise<Buffer> {
   const uiBuf = await sharp(Buffer.from(svgStr)).resize(W, H).png().toBuffer();
 
   if (hasBg) {
-    const bgPath = path.resolve(process.cwd(), "public", "match-bg", `${matchId}.jpg`);
     try {
-      const bgBuf = await fs.readFile(bgPath);
-      // Show image clearly — only slightly darken, no blur
-      const processedBg = await sharp(bgBuf)
-        .resize(W, H, { fit: "cover", position: "center" })
-        .modulate({ brightness: 0.78 })
-        .jpeg({ quality: 92 })
-        .toBuffer();
+      let bgBuf: Buffer | null = null;
 
-      return await sharp(processedBg)
-        .composite([{ input: uiBuf, top: 0, left: 0 }, ...flagComposites])
-        .png()
-        .toBuffer();
+      // Prefer DB-stored image data (works on Railway with ephemeral filesystem)
+      if (match.backgroundImageData) {
+        bgBuf = Buffer.from(match.backgroundImageData, "base64");
+      } else {
+        // Fallback: try filesystem (legacy)
+        const bgPath = path.resolve(process.cwd(), "public", "match-bg", `${matchId}.jpg`);
+        bgBuf = await fs.readFile(bgPath).catch(() => null);
+      }
+
+      if (bgBuf) {
+        const processedBg = await sharp(bgBuf)
+          .resize(W, H, { fit: "cover", position: "center" })
+          .modulate({ brightness: 0.78 })
+          .jpeg({ quality: 92 })
+          .toBuffer();
+
+        return await sharp(processedBg)
+          .composite([{ input: uiBuf, top: 0, left: 0 }, ...flagComposites])
+          .png()
+          .toBuffer();
+      }
     } catch (e) {
       console.error("[bg load failed, fallback]", e);
     }

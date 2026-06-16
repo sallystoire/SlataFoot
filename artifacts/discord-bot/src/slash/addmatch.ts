@@ -4,7 +4,6 @@ import {
 import { eq } from "drizzle-orm";
 import { db, matchesTable, scorersTable } from "../db.js";
 import { sendMatchCard, buildMatchEmbed, fetchMatchImageBuffer } from "./matchs.js";
-import { getApiBase } from "../utils/apiBase.js";
 
 const TEAM_COUNTRY: Record<string, string> = {
   france: "fr", portugal: "pt", espagne: "es", allemagne: "de",
@@ -34,32 +33,19 @@ function getEmoji(team: string): string {
   return "⚽";
 }
 
-async function uploadBackground(matchId: number, imageUrl: string): Promise<string | null> {
+async function downloadImageAsBase64(imageUrl: string): Promise<string | null> {
   try {
-    // Download the image directly from Discord (the bot has immediate access)
-    const imgRes = await fetch(imageUrl, { signal: AbortSignal.timeout(15000) });
+    console.log("[image] Téléchargement depuis Discord:", imageUrl.substring(0, 80));
+    const imgRes = await fetch(imageUrl, { signal: AbortSignal.timeout(20000) });
     if (!imgRes.ok) {
-      console.error("[uploadBackground] Failed to fetch Discord image:", imgRes.status);
+      console.error("[image] Échec fetch Discord:", imgRes.status);
       return null;
     }
     const imgBuf = Buffer.from(await imgRes.arrayBuffer());
-    const base64 = imgBuf.toString("base64");
-    const contentType = imgRes.headers.get("content-type") ?? "image/jpeg";
-
-    // Send the raw bytes as base64 so the API server doesn't need to re-fetch Discord CDN
-    const uploadRes = await fetch(`${getApiBase()}/api/match-bg/upload`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ matchId, imageData: base64, contentType }),
-    });
-    if (!uploadRes.ok) {
-      console.error("[uploadBackground] HTTP", uploadRes.status, await uploadRes.text());
-      return null;
-    }
-    const data = await uploadRes.json() as { url?: string };
-    return data.url ?? null;
+    console.log(`[image] Téléchargé: ${(imgBuf.length / 1024).toFixed(0)} KB`);
+    return imgBuf.toString("base64");
   } catch (e) {
-    console.error("[uploadBackground]", e);
+    console.error("[image] Erreur téléchargement:", e);
     return null;
   }
 }
@@ -89,12 +75,18 @@ export async function slashAddmatch(i: ChatInputCommandInteraction) {
     status: "upcoming",
   }).returning();
 
-  let bgUrl: string | null = null;
+  let hasImage = false;
 
   if (image && image.contentType?.startsWith("image/")) {
-    bgUrl = await uploadBackground(match.id, image.url);
-    if (bgUrl) {
-      await db.update(matchesTable).set({ backgroundImageUrl: bgUrl }).where(eq(matchesTable.id, match.id));
+    const imageData = await downloadImageAsBase64(image.url);
+    if (imageData) {
+      await db.update(matchesTable)
+        .set({ backgroundImageData: imageData, backgroundImageUrl: "db" })
+        .where(eq(matchesTable.id, match.id));
+      hasImage = true;
+      console.log(`[addmatch] Image sauvegardée en DB pour match #${match.id}`);
+    } else {
+      console.error(`[addmatch] Échec sauvegarde image pour match #${match.id}`);
     }
   }
 
@@ -107,7 +99,7 @@ export async function slashAddmatch(i: ChatInputCommandInteraction) {
       { name: "🏆 Compétition", value: competition, inline: true },
       { name: "📅 Date", value: matchDate.toLocaleString("fr-FR"), inline: true },
       { name: "📊 Côtes", value: `${homeTeam}: x${homeOdds} | Nul: x${drawOdds} | ${awayTeam}: x${awayOdds}` },
-      { name: "🖼️ Image de fond", value: bgUrl ? "✅ Uploadée" : "❌ Aucune (fond sombre par défaut)" },
+      { name: "🖼️ Image de fond", value: hasImage ? "✅ Sauvegardée" : "❌ Aucune (fond sombre par défaut)" },
     )
     .setDescription(`💡 Utilise \`/addbuteur match_id:${match.id}\` pour ajouter des buteurs.\n\n⬇️ Génération de la card dans le salon...`)
     .setTimestamp();
@@ -144,8 +136,14 @@ export async function slashEditmatch(i: ChatInputCommandInteraction) {
   if (newCompetition) updates.competition = newCompetition;
 
   if (image && image.contentType?.startsWith("image/")) {
-    const bgUrl = await uploadBackground(matchId, image.url);
-    if (bgUrl) updates.backgroundImageUrl = bgUrl;
+    const imageData = await downloadImageAsBase64(image.url);
+    if (imageData) {
+      (updates as any).backgroundImageData = imageData;
+      updates.backgroundImageUrl = "db";
+      console.log(`[editmatch] Image sauvegardée en DB pour match #${matchId}`);
+    } else {
+      console.error(`[editmatch] Échec sauvegarde image pour match #${matchId}`);
+    }
   }
 
   if (Object.keys(updates).length === 0) {
