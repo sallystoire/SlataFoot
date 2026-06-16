@@ -1,0 +1,190 @@
+import {
+  EmbedBuilder, type ChatInputCommandInteraction,
+} from "discord.js";
+import { eq } from "drizzle-orm";
+import { db, matchesTable, scorersTable } from "../db.js";
+import { sendMatchCard } from "./matchs.js";
+
+const API_BASE = `https://${process.env.REPLIT_DOMAINS}`;
+
+const TEAM_COUNTRY: Record<string, string> = {
+  france: "fr", portugal: "pt", espagne: "es", allemagne: "de",
+  angleterre: "gb-eng", italie: "it", brésil: "br", bresil: "br",
+  argentine: "ar", maroc: "ma", belgique: "be", algérie: "dz", algerie: "dz",
+  sénégal: "sn", senegal: "sn", "pays-bas": "nl", croatie: "hr",
+  japon: "jp", mexique: "mx", usa: "us", canada: "ca",
+  australie: "au", suisse: "ch", danemark: "dk", pologne: "pl",
+  ukraine: "ua", turquie: "tr", nigeria: "ng", tunisie: "tn",
+  egypt: "eg", corée: "kr", qatar: "qa", suède: "se",
+};
+
+function getEmoji(team: string): string {
+  const flags: Record<string, string> = {
+    fr: "🇫🇷", pt: "🇵🇹", es: "🇪🇸", de: "🇩🇪", "gb-eng": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+    it: "🇮🇹", br: "🇧🇷", ar: "🇦🇷", ma: "🇲🇦", be: "🇧🇪",
+    dz: "🇩🇿", sn: "🇸🇳", nl: "🇳🇱", hr: "🇭🇷", jp: "🇯🇵",
+    mx: "🇲🇽", us: "🇺🇸", ca: "🇨🇦", au: "🇦🇺", ch: "🇨🇭",
+    dk: "🇩🇰", pl: "🇵🇱", ua: "🇺🇦", tr: "🇹🇷", ng: "🇳🇬",
+    tn: "🇹🇳", eg: "🇪🇬", kr: "🇰🇷", qa: "🇶🇦", se: "🇸🇪",
+    "gb-sct": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
+  };
+  const lower = team.toLowerCase().trim();
+  for (const [key, code] of Object.entries(TEAM_COUNTRY)) {
+    if (lower.includes(key) || key.includes(lower)) return flags[code] ?? "⚽";
+  }
+  return "⚽";
+}
+
+export async function slashAddmatch(i: ChatInputCommandInteraction) {
+  await i.deferReply({ ephemeral: true });
+
+  const homeTeam = i.options.getString("equipe1", true);
+  const awayTeam = i.options.getString("equipe2", true);
+  const homeOdds = i.options.getNumber("cote1", true);
+  const drawOdds = i.options.getNumber("cotenul", true);
+  const awayOdds = i.options.getNumber("cote2", true);
+  const dateStr = i.options.getString("date", true);
+  const competition = i.options.getString("competition") ?? "Ligue 1";
+  const image = i.options.getAttachment("image");
+
+  const matchDate = new Date(dateStr);
+  if (isNaN(matchDate.getTime())) {
+    return i.editReply("❌ Date invalide. Format : `2026-06-20T20:00`");
+  }
+
+  const [match] = await db.insert(matchesTable).values({
+    homeTeam, awayTeam,
+    homeTeamEmoji: getEmoji(homeTeam),
+    awayTeamEmoji: getEmoji(awayTeam),
+    competition, matchDate, homeOdds, drawOdds, awayOdds,
+    status: "upcoming",
+  }).returning();
+
+  let bgUrl: string | null = null;
+
+  if (image && (image.contentType?.startsWith("image/") ?? false)) {
+    try {
+      const uploadRes = await fetch(`http://localhost:${process.env.PORT ?? 8080}/api/match-bg/upload`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ matchId: match.id, imageUrl: image.url }),
+      });
+      if (uploadRes.ok) {
+        const data = await uploadRes.json() as { url?: string };
+        if (data.url) {
+          bgUrl = data.url;
+          await db.update(matchesTable)
+            .set({ backgroundImageUrl: bgUrl })
+            .where(eq(matchesTable.id, match.id));
+        }
+      }
+    } catch (e) {
+      console.error("[addmatch image upload]", e);
+    }
+  }
+
+  const confirmEmbed = new EmbedBuilder()
+    .setTitle("✅ Match ajouté !")
+    .setColor(0x2ecc71)
+    .addFields(
+      { name: "🆔 ID", value: `#${match.id}`, inline: true },
+      { name: "⚽ Match", value: `${match.homeTeamEmoji} ${homeTeam} vs ${match.awayTeamEmoji} ${awayTeam}`, inline: true },
+      { name: "🏆 Compétition", value: competition, inline: true },
+      { name: "📅 Date", value: matchDate.toLocaleString("fr-FR"), inline: true },
+      { name: "📊 Côtes", value: `${homeTeam}: x${homeOdds} | Nul: x${drawOdds} | ${awayTeam}: x${awayOdds}` },
+      { name: "🖼️ Image de fond", value: bgUrl ? "✅ Uploadée" : "❌ Aucune (fond sombre par défaut)" },
+    )
+    .setDescription(`💡 Utilise \`/addbuteur match_id:${match.id}\` pour ajouter des buteurs.\n\n⬇️ Génération de la card dans le salon...`)
+    .setTimestamp();
+
+  await i.editReply({ embeds: [confirmEmbed] });
+
+  const updatedMatch = await db.query.matchesTable.findFirst({ where: eq(matchesTable.id, match.id) });
+  if (updatedMatch) await sendMatchCard(i.channel, updatedMatch);
+}
+
+export async function slashAddbuteur(i: ChatInputCommandInteraction) {
+  await i.deferReply({ ephemeral: true });
+
+  const matchId = i.options.getInteger("match_id", true);
+  const playerName = i.options.getString("joueur", true);
+  const team = i.options.getString("equipe", true);
+  const odds = i.options.getNumber("cote", true);
+
+  const match = await db.query.matchesTable.findFirst({ where: eq(matchesTable.id, matchId) });
+  if (!match) return i.editReply(`❌ Match #${matchId} introuvable.`);
+
+  await db.insert(scorersTable).values({ matchId, playerName, team, odds });
+  await i.editReply(`✅ **${playerName}** (${team}) ajouté pour le match #${matchId} — cote **x${odds.toFixed(2)}**`);
+}
+
+export async function slashResultat(i: ChatInputCommandInteraction) {
+  await i.deferReply({ ephemeral: true });
+
+  const matchId = i.options.getInteger("match_id", true);
+  const scoreStr = i.options.getString("score", true).toLowerCase().trim();
+
+  const match = await db.query.matchesTable.findFirst({ where: eq(matchesTable.id, matchId) });
+  if (!match) return i.editReply(`❌ Match #${matchId} introuvable.`);
+
+  let homeScore: number, awayScore: number, winner: string;
+
+  if (scoreStr === "nul" || scoreStr === "draw" || scoreStr === "0-0") {
+    homeScore = 0; awayScore = 0; winner = "draw";
+  } else {
+    const parts = scoreStr.split("-");
+    if (parts.length !== 2) return i.editReply("❌ Format invalide. Ex: `2-1` ou `nul`");
+    homeScore = parseInt(parts[0], 10);
+    awayScore = parseInt(parts[1], 10);
+    if (isNaN(homeScore) || isNaN(awayScore)) return i.editReply("❌ Scores invalides.");
+    winner = homeScore > awayScore ? "home" : awayScore > homeScore ? "away" : "draw";
+  }
+
+  await db.update(matchesTable).set({ status: "finished", homeScore, awayScore }).where(eq(matchesTable.id, matchId));
+
+  const { betsTable, usersTable } = await import("../db.js");
+  const pendingBets = await db.query.betsTable.findMany({
+    where: (b, { and, eq: beq }) => and(beq(b.matchId, matchId), beq(b.status, "pending")),
+  });
+
+  let wonCount = 0, lostCount = 0;
+
+  for (const bet of pendingBets) {
+    const isWin =
+      (bet.betType === "home" && winner === "home") ||
+      (bet.betType === "away" && winner === "away") ||
+      (bet.betType === "draw" && winner === "draw");
+
+    const betUser = await db.query.usersTable.findFirst({ where: eq(usersTable.id, bet.userId) });
+    if (!betUser) continue;
+
+    if (isWin) {
+      const win = Math.floor(bet.potentialWin);
+      await db.update(usersTable).set({ coins: betUser.coins + win, wonBets: betUser.wonBets + 1, xp: betUser.xp + 20 }).where(eq(usersTable.id, bet.userId));
+      await db.update(betsTable).set({ status: "won" }).where(eq(betsTable.id, bet.id));
+      wonCount++;
+      try {
+        const du = await i.client.users.fetch(betUser.discordId);
+        await du.send(`🏆 Tu as **GAGNÉ** ton pari sur **${match.homeTeam} vs ${match.awayTeam}** !\nGain : **+${win} 🪙** 🎉`);
+      } catch {}
+    } else {
+      await db.update(usersTable).set({ lostBets: betUser.lostBets + 1 }).where(eq(usersTable.id, bet.userId));
+      await db.update(betsTable).set({ status: "lost" }).where(eq(betsTable.id, bet.id));
+      lostCount++;
+    }
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle("🏁 Résultat enregistré !")
+    .setColor(0xe74c3c)
+    .addFields(
+      { name: "⚽ Match", value: `${match.homeTeam} vs ${match.awayTeam}`, inline: true },
+      { name: "📊 Score", value: `**${homeScore} - ${awayScore}**`, inline: true },
+      { name: "🏆 Vainqueur", value: winner === "draw" ? "Match Nul" : winner === "home" ? match.homeTeam : match.awayTeam, inline: true },
+      { name: "✅ Gagnants", value: `${wonCount} paris`, inline: true },
+      { name: "❌ Perdants", value: `${lostCount} paris`, inline: true },
+    )
+    .setTimestamp();
+
+  await i.editReply({ embeds: [embed] });
+}

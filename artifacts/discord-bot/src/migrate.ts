@@ -2,7 +2,7 @@ import { db } from "./db.js";
 import { sql } from "drizzle-orm";
 
 async function migrate() {
-  console.log("🔄 Création des tables...");
+  console.log("🔄 Création/mise à jour des tables...");
 
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS users (
@@ -39,8 +39,13 @@ async function migrate() {
       status TEXT NOT NULL DEFAULT 'upcoming',
       home_score INTEGER,
       away_score INTEGER,
+      background_image_url TEXT,
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     )
+  `);
+
+  await db.execute(sql`
+    ALTER TABLE matches ADD COLUMN IF NOT EXISTS background_image_url TEXT
   `);
 
   await db.execute(sql`
@@ -81,11 +86,11 @@ async function migrate() {
     )
   `);
 
-  console.log("✅ Tables créées avec succès !");
+  console.log("✅ Tables prêtes !");
   process.exit(0);
 }
 
 migrate().catch((err) => {
-  console.error("❌ Erreur lors de la migration:", err);
+  console.error("❌ Erreur migration:", err);
   process.exit(1);
 });

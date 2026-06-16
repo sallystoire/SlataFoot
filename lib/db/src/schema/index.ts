@@ -34,6 +34,7 @@ export const matchesTable = pgTable("matches", {
   status: text("status").notNull().default("upcoming"),
   homeScore: integer("home_score"),
   awayScore: integer("away_score"),
+  backgroundImageUrl: text("background_image_url"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

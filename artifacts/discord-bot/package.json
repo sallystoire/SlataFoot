@@ -8,6 +8,7 @@
     "start": "tsx src/index.ts",
     "seed": "tsx src/seed.ts",
     "migrate": "tsx src/migrate.ts",
+    "deploy": "tsx src/deploy-commands.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
