@@ -18,21 +18,37 @@ const TEAM_COUNTRY: Record<string, string> = {
   egypt: "eg", corée: "kr", qatar: "qa", suède: "se",
 };
 
+const FLAGS: Record<string, string> = {
+  fr: "🇫🇷", pt: "🇵🇹", es: "🇪🇸", de: "🇩🇪", "gb-eng": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
+  it: "🇮🇹", br: "🇧🇷", ar: "🇦🇷", ma: "🇲🇦", be: "🇧🇪",
+  dz: "🇩🇿", sn: "🇸🇳", nl: "🇳🇱", hr: "🇭🇷", jp: "🇯🇵",
+  mx: "🇲🇽", us: "🇺🇸", ca: "🇨🇦", au: "🇦🇺", ch: "🇨🇭",
+  dk: "🇩🇰", pl: "🇵🇱", ua: "🇺🇦", tr: "🇹🇷", ng: "🇳🇬",
+  tn: "🇹🇳", eg: "🇪🇬", kr: "🇰🇷", qa: "🇶🇦", se: "🇸🇪",
+};
+
 function getEmoji(team: string): string {
-  const flags: Record<string, string> = {
-    fr: "🇫🇷", pt: "🇵🇹", es: "🇪🇸", de: "🇩🇪", "gb-eng": "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
-    it: "🇮🇹", br: "🇧🇷", ar: "🇦🇷", ma: "🇲🇦", be: "🇧🇪",
-    dz: "🇩🇿", sn: "🇸🇳", nl: "🇳🇱", hr: "🇭🇷", jp: "🇯🇵",
-    mx: "🇲🇽", us: "🇺🇸", ca: "🇨🇦", au: "🇦🇺", ch: "🇨🇭",
-    dk: "🇩🇰", pl: "🇵🇱", ua: "🇺🇦", tr: "🇹🇷", ng: "🇳🇬",
-    tn: "🇹🇳", eg: "🇪🇬", kr: "🇰🇷", qa: "🇶🇦", se: "🇸🇪",
-    "gb-sct": "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
-  };
   const lower = team.toLowerCase().trim();
   for (const [key, code] of Object.entries(TEAM_COUNTRY)) {
-    if (lower.includes(key) || key.includes(lower)) return flags[code] ?? "⚽";
+    if (lower.includes(key) || key.includes(lower)) return FLAGS[code] ?? "⚽";
   }
   return "⚽";
+}
+
+async function uploadBackground(matchId: number, imageUrl: string): Promise<string | null> {
+  try {
+    const uploadRes = await fetch(`http://localhost:${process.env.PORT ?? 8080}/api/match-bg/upload`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ matchId, imageUrl }),
+    });
+    if (!uploadRes.ok) return null;
+    const data = await uploadRes.json() as { url?: string };
+    return data.url ?? null;
+  } catch (e) {
+    console.error("[uploadBackground]", e);
+    return null;
+  }
 }
 
 export async function slashAddmatch(i: ChatInputCommandInteraction) {
@@ -62,24 +78,10 @@ export async function slashAddmatch(i: ChatInputCommandInteraction) {
 
   let bgUrl: string | null = null;
 
-  if (image && (image.contentType?.startsWith("image/") ?? false)) {
-    try {
-      const uploadRes = await fetch(`http://localhost:${process.env.PORT ?? 8080}/api/match-bg/upload`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ matchId: match.id, imageUrl: image.url }),
-      });
-      if (uploadRes.ok) {
-        const data = await uploadRes.json() as { url?: string };
-        if (data.url) {
-          bgUrl = data.url;
-          await db.update(matchesTable)
-            .set({ backgroundImageUrl: bgUrl })
-            .where(eq(matchesTable.id, match.id));
-        }
-      }
-    } catch (e) {
-      console.error("[addmatch image upload]", e);
+  if (image && image.contentType?.startsWith("image/")) {
+    bgUrl = await uploadBackground(match.id, image.url);
+    if (bgUrl) {
+      await db.update(matchesTable).set({ backgroundImageUrl: bgUrl }).where(eq(matchesTable.id, match.id));
     }
   }
 
@@ -88,7 +90,7 @@ export async function slashAddmatch(i: ChatInputCommandInteraction) {
     .setColor(0x2ecc71)
     .addFields(
       { name: "🆔 ID", value: `#${match.id}`, inline: true },
-      { name: "⚽ Match", value: `${match.homeTeamEmoji} ${homeTeam} vs ${match.awayTeamEmoji} ${awayTeam}`, inline: true },
+      { name: "⚽ Match", value: `${getEmoji(homeTeam)} ${homeTeam} vs ${getEmoji(awayTeam)} ${awayTeam}`, inline: true },
       { name: "🏆 Compétition", value: competition, inline: true },
       { name: "📅 Date", value: matchDate.toLocaleString("fr-FR"), inline: true },
       { name: "📊 Côtes", value: `${homeTeam}: x${homeOdds} | Nul: x${drawOdds} | ${awayTeam}: x${awayOdds}` },
@@ -100,7 +102,59 @@ export async function slashAddmatch(i: ChatInputCommandInteraction) {
   await i.editReply({ embeds: [confirmEmbed] });
 
   const updatedMatch = await db.query.matchesTable.findFirst({ where: eq(matchesTable.id, match.id) });
-  if (updatedMatch) await sendMatchCard(i.channel, updatedMatch);
+  if (updatedMatch && i.channel) await sendMatchCard(i.channel, updatedMatch);
+}
+
+export async function slashEditmatch(i: ChatInputCommandInteraction) {
+  await i.deferReply({ ephemeral: true });
+
+  const matchId = i.options.getInteger("match_id", true);
+  const newCote1 = i.options.getNumber("cote1");
+  const newCoteNul = i.options.getNumber("cotenul");
+  const newCote2 = i.options.getNumber("cote2");
+  const newDate = i.options.getString("date");
+  const newCompetition = i.options.getString("competition");
+  const image = i.options.getAttachment("image");
+
+  const match = await db.query.matchesTable.findFirst({ where: eq(matchesTable.id, matchId) });
+  if (!match) return i.editReply(`❌ Match #${matchId} introuvable.`);
+
+  const updates: Partial<typeof match> = {};
+  if (newCote1 !== null) updates.homeOdds = newCote1;
+  if (newCoteNul !== null) updates.drawOdds = newCoteNul;
+  if (newCote2 !== null) updates.awayOdds = newCote2;
+  if (newDate) {
+    const d = new Date(newDate);
+    if (isNaN(d.getTime())) return i.editReply("❌ Date invalide.");
+    updates.matchDate = d;
+  }
+  if (newCompetition) updates.competition = newCompetition;
+
+  if (image && image.contentType?.startsWith("image/")) {
+    const bgUrl = await uploadBackground(matchId, image.url);
+    if (bgUrl) updates.backgroundImageUrl = bgUrl;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return i.editReply("❌ Aucun changement fourni.");
+  }
+
+  await db.update(matchesTable).set(updates as any).where(eq(matchesTable.id, matchId));
+
+  const updated = await db.query.matchesTable.findFirst({ where: eq(matchesTable.id, matchId) });
+
+  const embed = new EmbedBuilder()
+    .setTitle(`✏️ Match #${matchId} mis à jour`)
+    .setColor(0x3498db)
+    .addFields(
+      { name: "⚽ Match", value: `${match.homeTeamEmoji} ${match.homeTeam} vs ${match.awayTeamEmoji} ${match.awayTeam}`, inline: false },
+      { name: "📊 Nouvelles côtes", value: `Dom: x${updated!.homeOdds.toFixed(2)} | Nul: x${updated!.drawOdds.toFixed(2)} | Ext: x${updated!.awayOdds.toFixed(2)}`, inline: false },
+      ...(newDate ? [{ name: "📅 Nouvelle date", value: new Date(newDate).toLocaleString("fr-FR"), inline: true }] : []),
+      ...(updates.backgroundImageUrl ? [{ name: "🖼️ Image", value: "✅ Mise à jour", inline: true }] : []),
+    )
+    .setTimestamp();
+
+  await i.editReply({ embeds: [embed] });
 }
 
 export async function slashAddbuteur(i: ChatInputCommandInteraction) {
@@ -142,7 +196,7 @@ export async function slashResultat(i: ChatInputCommandInteraction) {
 
   await db.update(matchesTable).set({ status: "finished", homeScore, awayScore }).where(eq(matchesTable.id, matchId));
 
-  const { betsTable, usersTable } = await import("../db.js");
+  const { betsTable, usersTable, couponsTable } = await import("../db.js");
   const pendingBets = await db.query.betsTable.findMany({
     where: (b, { and, eq: beq }) => and(beq(b.matchId, matchId), beq(b.status, "pending")),
   });
@@ -170,6 +224,49 @@ export async function slashResultat(i: ChatInputCommandInteraction) {
     } else {
       await db.update(usersTable).set({ lostBets: betUser.lostBets + 1 }).where(eq(usersTable.id, bet.userId));
       await db.update(betsTable).set({ status: "lost" }).where(eq(betsTable.id, bet.id));
+      lostCount++;
+    }
+  }
+
+  const pendingCoupons = await db.query.couponsTable.findMany({
+    where: (c, { eq: ceq }) => ceq(c.status, "pending"),
+  });
+
+  for (const coupon of pendingCoupons) {
+    const matchIds = coupon.matchIds as number[];
+    if (!matchIds.includes(matchId)) continue;
+
+    const allMatches = await db.query.matchesTable.findMany({
+      where: (m, { inArray }) => inArray(m.id, matchIds),
+    });
+
+    const allFinished = allMatches.every((m) => m.status === "finished");
+    if (!allFinished) continue;
+
+    const choices = coupon.betChoices as string[];
+    let allWon = true;
+    for (let idx = 0; idx < allMatches.length; idx++) {
+      const m = allMatches[idx];
+      const choice = choices[idx];
+      const mWinner = (m.homeScore ?? 0) > (m.awayScore ?? 0) ? "home" : (m.awayScore ?? 0) > (m.homeScore ?? 0) ? "away" : "draw";
+      if (choice !== mWinner) { allWon = false; break; }
+    }
+
+    const couponUser = await db.query.usersTable.findFirst({ where: eq(usersTable.id, coupon.userId) });
+    if (!couponUser) continue;
+
+    if (allWon) {
+      const win = Math.floor(coupon.potentialWin);
+      await db.update(usersTable).set({ coins: couponUser.coins + win, wonBets: couponUser.wonBets + 1, xp: couponUser.xp + 50 }).where(eq(usersTable.id, coupon.userId));
+      await db.update(couponsTable).set({ status: "won" }).where(eq(couponsTable.id, coupon.id));
+      wonCount++;
+      try {
+        const du = await i.client.users.fetch(couponUser.discordId);
+        await du.send(`🏆 Ton **COUPON** est gagnant ! Gain : **+${win} 🪙** 🎉`);
+      } catch {}
+    } else {
+      await db.update(usersTable).set({ lostBets: couponUser.lostBets + 1 }).where(eq(usersTable.id, coupon.userId));
+      await db.update(couponsTable).set({ status: "lost" }).where(eq(couponsTable.id, coupon.id));
       lostCount++;
     }
   }

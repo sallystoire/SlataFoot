@@ -44,9 +44,7 @@ async function migrate() {
     )
   `);
 
-  await db.execute(sql`
-    ALTER TABLE matches ADD COLUMN IF NOT EXISTS background_image_url TEXT
-  `);
+  await db.execute(sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS background_image_url TEXT`);
 
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS scorers (
@@ -73,6 +71,23 @@ async function migrate() {
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     )
   `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS coupons (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      match_ids JSONB NOT NULL,
+      bet_choices JSONB NOT NULL,
+      match_labels JSONB NOT NULL DEFAULT '[]',
+      combined_odds REAL NOT NULL,
+      amount INTEGER NOT NULL,
+      potential_win REAL NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await db.execute(sql`ALTER TABLE coupons ADD COLUMN IF NOT EXISTS match_labels JSONB NOT NULL DEFAULT '[]'`);
 
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS settings (

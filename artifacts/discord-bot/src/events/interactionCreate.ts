@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 import { db, betsTable, matchesTable, usersTable, settingsTable } from "../db.js";
 import { getOrCreateUser } from "../utils/getOrCreateUser.js";
 import { updateLiveEmbed } from "../utils/liveEmbed.js";
+import { handleCouponButton, handleCouponModal } from "../slash/coupon.js";
 
 import { slashHelp } from "../slash/help.js";
 import { slashMatchs } from "../slash/matchs.js";
@@ -17,9 +18,12 @@ import { slashProfile, slashTop } from "../slash/profile.js";
 import { slashParrainage, slashCode } from "../slash/parrainage.js";
 import { slashLive } from "../slash/live.js";
 import { slashSettings } from "../slash/settings.js";
-import { slashAddmatch, slashAddbuteur, slashResultat } from "../slash/addmatch.js";
+import { slashAddmatch, slashAddbuteur, slashResultat, slashEditmatch } from "../slash/addmatch.js";
+import { slashCoupon } from "../slash/coupon.js";
 
 const API_BASE = `https://${process.env.REPLIT_DOMAINS}`;
+
+const couponState = new Map<string, Map<number, string>>();
 
 export async function handleInteractionCreate(interaction: Interaction) {
   try {
@@ -54,14 +58,20 @@ async function handleSlashCommand(i: ChatInputCommandInteraction) {
     case "live":        return slashLive(i);
     case "settings":    return slashSettings(i);
     case "addmatch":    return slashAddmatch(i);
+    case "editmatch":   return slashEditmatch(i);
     case "addbuteur":   return slashAddbuteur(i);
     case "resultat":    return slashResultat(i);
+    case "coupon":      return slashCoupon(i);
     default:
       await i.reply({ content: "❌ Commande inconnue.", ephemeral: true });
   }
 }
 
 async function handleButton(interaction: ButtonInteraction) {
+  if (interaction.customId.startsWith("cp_")) {
+    return handleCouponButton(interaction, couponState);
+  }
+
   const parts = interaction.customId.split("_");
   if (parts[0] !== "bet") return;
 
@@ -98,6 +108,10 @@ async function handleButton(interaction: ButtonInteraction) {
 }
 
 async function handleModal(interaction: ModalSubmitInteraction) {
+  if (interaction.customId.startsWith("cp_modal_")) {
+    return handleCouponModal(interaction, couponState);
+  }
+
   const parts = interaction.customId.split("_");
   if (parts[0] !== "betmodal") return;
 
@@ -167,14 +181,5 @@ async function handleModal(interaction: ModalSubmitInteraction) {
         }
       } catch {}
     }
-
-    const imageUrl = `${API_BASE}/api/match-image/${matchId}?t=${Date.now()}`;
-    try {
-      const origMsg = await interaction.message?.fetch();
-      if (origMsg?.embeds[0]) {
-        const updatedEmbed = EmbedBuilder.from(origMsg.embeds[0]).setImage(imageUrl);
-        await origMsg.edit({ embeds: [updatedEmbed], components: origMsg.components });
-      }
-    } catch {}
   }
 }

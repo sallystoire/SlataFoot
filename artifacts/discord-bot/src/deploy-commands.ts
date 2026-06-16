@@ -92,6 +92,25 @@ const commands = [
     .setDefaultMemberPermissions("8")
     .addIntegerOption((o) => o.setName("match_id").setDescription("ID du match").setRequired(true))
     .addStringOption((o) => o.setName("score").setDescription("Score ex: 2-1 ou 'nul'").setRequired(true)),
+
+  new SlashCommandBuilder()
+    .setName("editmatch")
+    .setDescription("Modifier un match existant (Admin)")
+    .setDefaultMemberPermissions("8")
+    .addIntegerOption((o) => o.setName("match_id").setDescription("ID du match à modifier").setRequired(true))
+    .addNumberOption((o) => o.setName("cote1").setDescription("Nouvelle côte domicile").setRequired(false).setMinValue(1.01))
+    .addNumberOption((o) => o.setName("cotenul").setDescription("Nouvelle côte nul").setRequired(false).setMinValue(1.01))
+    .addNumberOption((o) => o.setName("cote2").setDescription("Nouvelle côte extérieur").setRequired(false).setMinValue(1.01))
+    .addStringOption((o) => o.setName("date").setDescription("Nouvelle date (YYYY-MM-DDTHH:mm)").setRequired(false))
+    .addStringOption((o) => o.setName("competition").setDescription("Nom de la compétition").setRequired(false))
+    .addAttachmentOption((o) => o.setName("image").setDescription("Nouvelle image de fond").setRequired(false)),
+
+  new SlashCommandBuilder()
+    .setName("coupon")
+    .setDescription("Créer un coupon multi-matchs")
+    .addStringOption((o) =>
+      o.setName("matchs").setDescription("IDs des matchs séparés par des virgules (ex: 1,2,3)").setRequired(true)
+    ),
 ].map((cmd) => cmd.toJSON());
 
 function getClientId(token: string): string {

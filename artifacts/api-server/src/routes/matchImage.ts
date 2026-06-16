@@ -63,84 +63,79 @@ function generateUISVG(opts: {
   const awayStroke = opts.mostBetted === "away" ? 'stroke="#ffffff" stroke-width="3"' : 'stroke="#444" stroke-width="1.5"';
   const badgeX = opts.mostBetted === "home" ? homeBoxX + boxW / 2 : opts.mostBetted === "draw" ? drawBoxX + boxW / 2 : awayBoxX + boxW / 2;
 
-  const bgSection = opts.hasBg ? "" : `
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#1e1e2e"/>
-      <stop offset="100%" style="stop-color:#0d0d1a"/>
-    </linearGradient>
-  </defs>
-  <rect width="${W}" height="${H}" fill="url(#bg)"/>`;
+  const darkBgOverlay = opts.hasBg
+    ? `<rect x="5" y="5" width="${W - 10}" height="${H - 10}" rx="18" fill="rgba(0,0,0,0.35)"/>`
+    : `<rect x="5" y="5" width="${W - 10}" height="${H - 10}" rx="18" fill="url(#darkBg)"/>`;
+
+  const baseBg = opts.hasBg
+    ? ""
+    : `<rect width="${W}" height="${H}" rx="22" fill="#0d0d1a"/>`;
+
+  const borderRect = opts.hasBg
+    ? `<rect width="${W}" height="${H}" rx="22" fill="none" stroke="url(#borderGrad)" stroke-width="6"/>`
+    : `<rect width="${W}" height="${H}" rx="22" fill="url(#borderGrad)"/>`;
 
   return `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
-  ${bgSection}
   <defs>
     <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#ff0080"/><stop offset="25%" stop-color="#ff8000"/>
       <stop offset="50%" stop-color="#ffff00"/><stop offset="75%" stop-color="#00ff80"/>
       <stop offset="100%" stop-color="#0080ff"/>
     </linearGradient>
+    <linearGradient id="darkBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e1e2e"/><stop offset="100%" stop-color="#0d0d1a"/>
+    </linearGradient>
     <linearGradient id="hdrGrad" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#4f5fdb"/><stop offset="100%" stop-color="#2a3aaa"/>
     </linearGradient>
     <linearGradient id="fadeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#0d0d1a" stop-opacity="0"/>
-      <stop offset="100%" stop-color="#0d0d1a" stop-opacity="${opts.hasBg ? 0.85 : 1}"/>
+      <stop offset="0%" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="${opts.hasBg ? 0.82 : 1}"/>
     </linearGradient>
-    <clipPath id="cc"><rect x="5" y="5" width="${W-10}" height="${H-10}" rx="18"/></clipPath>
+    <clipPath id="cc"><rect x="5" y="5" width="${W - 10}" height="${H - 10}" rx="18"/></clipPath>
   </defs>
 
-  <!-- Border -->
-  <rect width="${W}" height="${H}" rx="22" fill="url(#borderGrad)"/>
-  <!-- Inner clip -->
+  ${baseBg}
+  ${borderRect}
+
   <g clip-path="url(#cc)">
-    <!-- Fade bottom -->
-    <rect x="5" y="200" width="${W-10}" height="300" fill="url(#fadeGrad)"/>
-    <!-- Header -->
-    <rect x="5" y="5" width="${W-10}" height="58" fill="url(#hdrGrad)"/>
+    ${darkBgOverlay}
+    <rect x="5" y="180" width="${W - 10}" height="315" fill="url(#fadeGrad)"/>
+    <rect x="5" y="5" width="${W - 10}" height="58" fill="url(#hdrGrad)" opacity="${opts.hasBg ? 0.92 : 1}"/>
     <text x="22" y="42" font-size="19" font-weight="700" fill="white" font-family="Arial,Helvetica,sans-serif">${comp}</text>
-    <!-- Green accent -->
-    <rect x="5" y="63" width="${W-10}" height="5" fill="#2ecc71"/>
-    <!-- Badge shirt -->
-    <rect x="${W-72}" y="12" width="56" height="38" rx="9" fill="#1a1f6e"/>
-    <text x="${W-44}" y="39" text-anchor="middle" font-size="18" fill="white" font-family="Arial,sans-serif">👕</text>
+    <rect x="5" y="63" width="${W - 10}" height="4" fill="#2ecc71"/>
+    <rect x="${W - 72}" y="12" width="56" height="38" rx="9" fill="#1a1f6e"/>
+    <text x="${W - 44}" y="39" text-anchor="middle" font-size="18" fill="white" font-family="Arial,sans-serif">👕</text>
 
-    <!-- Team names -->
     <text x="120" y="308" text-anchor="middle" font-size="22" font-weight="800" fill="white" font-family="Arial,sans-serif">${ht}</text>
-    <text x="${W-120}" y="308" text-anchor="middle" font-size="22" font-weight="800" fill="white" font-family="Arial,sans-serif">${at}</text>
+    <text x="${W - 120}" y="308" text-anchor="middle" font-size="22" font-weight="800" fill="white" font-family="Arial,sans-serif">${at}</text>
 
-    <!-- Date/time center -->
-    <text x="${W/2}" y="255" text-anchor="middle" font-size="17" fill="#aac" font-family="Arial,sans-serif">${escapeXml(line1)}</text>
-    <text x="${W/2}" y="295" text-anchor="middle" font-size="36" font-weight="700" fill="white" font-family="Arial,sans-serif">${escapeXml(line2)}</text>
+    <text x="${W / 2}" y="255" text-anchor="middle" font-size="17" fill="#aac" font-family="Arial,sans-serif">${escapeXml(line1)}</text>
+    <text x="${W / 2}" y="295" text-anchor="middle" font-size="36" font-weight="700" fill="white" font-family="Arial,sans-serif">${escapeXml(line2)}</text>
 
-    <!-- Badge most betted -->
-    <rect x="${badgeX-55}" y="${boxY-24}" width="110" height="22" rx="11" fill="#e74c3c"/>
-    <text x="${badgeX}" y="${boxY-7}" text-anchor="middle" font-size="12" fill="white" font-weight="700" font-family="Arial,sans-serif">${opts.totalBets} 🪙 misés</text>
+    <rect x="${badgeX - 55}" y="${boxY - 24}" width="110" height="22" rx="11" fill="#e74c3c"/>
+    <text x="${badgeX}" y="${boxY - 7}" text-anchor="middle" font-size="12" fill="white" font-weight="700" font-family="Arial,sans-serif">${opts.totalBets} 🪙 misés</text>
 
-    <!-- HOME box -->
-    <rect x="${homeBoxX}" y="${boxY}" width="${boxW}" height="${boxH}" rx="14" fill="#12122a" ${homeStroke}/>
-    <text x="${homeBoxX+boxW/2}" y="${boxY+25}" text-anchor="middle" font-size="14" fill="#ccd" font-family="Arial,sans-serif">${ht}</text>
-    <text x="${homeBoxX+boxW/2}" y="${boxY+63}" text-anchor="middle" font-size="32" font-weight="800" fill="#e74c3c" font-family="Arial,sans-serif">${opts.homeOdds.toFixed(2)}</text>
-    <!-- HOME progress -->
-    <text x="${homeBoxX}" y="${boxY+boxH+18}" font-size="12" fill="#99a" font-family="Arial,sans-serif">${opts.homePct}%</text>
-    <rect x="${homeBoxX}" y="${boxY+boxH+22}" width="${boxW}" height="5" rx="2.5" fill="#333"/>
-    <rect x="${homeBoxX}" y="${boxY+boxH+22}" width="${homePW}" height="5" rx="2.5" fill="${opts.homePct>35?"#2ecc71":"#e74c3c"}"/>
+    <rect x="${homeBoxX}" y="${boxY}" width="${boxW}" height="${boxH}" rx="14" fill="#12122a" opacity="0.9" ${homeStroke}/>
+    <text x="${homeBoxX + boxW / 2}" y="${boxY + 25}" text-anchor="middle" font-size="14" fill="#ccd" font-family="Arial,sans-serif">${ht}</text>
+    <text x="${homeBoxX + boxW / 2}" y="${boxY + 63}" text-anchor="middle" font-size="32" font-weight="800" fill="#e74c3c" font-family="Arial,sans-serif">${opts.homeOdds.toFixed(2)}</text>
+    <text x="${homeBoxX}" y="${boxY + boxH + 18}" font-size="12" fill="#99a" font-family="Arial,sans-serif">${opts.homePct}%</text>
+    <rect x="${homeBoxX}" y="${boxY + boxH + 22}" width="${boxW}" height="5" rx="2.5" fill="#333"/>
+    <rect x="${homeBoxX}" y="${boxY + boxH + 22}" width="${homePW}" height="5" rx="2.5" fill="${opts.homePct > 35 ? "#2ecc71" : "#e74c3c"}"/>
 
-    <!-- DRAW box -->
-    <rect x="${drawBoxX}" y="${boxY}" width="${boxW}" height="${boxH}" rx="14" fill="#12122a" ${drawStroke}/>
-    <text x="${drawBoxX+boxW/2}" y="${boxY+25}" text-anchor="middle" font-size="14" fill="#ccd" font-family="Arial,sans-serif">Match nul</text>
-    <text x="${drawBoxX+boxW/2}" y="${boxY+63}" text-anchor="middle" font-size="32" font-weight="800" fill="#e74c3c" font-family="Arial,sans-serif">${opts.drawOdds.toFixed(2)}</text>
-    <text x="${drawBoxX}" y="${boxY+boxH+18}" font-size="12" fill="#99a" font-family="Arial,sans-serif">${opts.drawPct}%</text>
-    <rect x="${drawBoxX}" y="${boxY+boxH+22}" width="${boxW}" height="5" rx="2.5" fill="#333"/>
-    <rect x="${drawBoxX}" y="${boxY+boxH+22}" width="${drawPW}" height="5" rx="2.5" fill="${opts.drawPct>35?"#2ecc71":"#e74c3c"}"/>
+    <rect x="${drawBoxX}" y="${boxY}" width="${boxW}" height="${boxH}" rx="14" fill="#12122a" opacity="0.9" ${drawStroke}/>
+    <text x="${drawBoxX + boxW / 2}" y="${boxY + 25}" text-anchor="middle" font-size="14" fill="#ccd" font-family="Arial,sans-serif">Match nul</text>
+    <text x="${drawBoxX + boxW / 2}" y="${boxY + 63}" text-anchor="middle" font-size="32" font-weight="800" fill="#e74c3c" font-family="Arial,sans-serif">${opts.drawOdds.toFixed(2)}</text>
+    <text x="${drawBoxX}" y="${boxY + boxH + 18}" font-size="12" fill="#99a" font-family="Arial,sans-serif">${opts.drawPct}%</text>
+    <rect x="${drawBoxX}" y="${boxY + boxH + 22}" width="${boxW}" height="5" rx="2.5" fill="#333"/>
+    <rect x="${drawBoxX}" y="${boxY + boxH + 22}" width="${drawPW}" height="5" rx="2.5" fill="${opts.drawPct > 35 ? "#2ecc71" : "#e74c3c"}"/>
 
-    <!-- AWAY box -->
-    <rect x="${awayBoxX}" y="${boxY}" width="${boxW}" height="${boxH}" rx="14" fill="#12122a" ${awayStroke}/>
-    <text x="${awayBoxX+boxW/2}" y="${boxY+25}" text-anchor="middle" font-size="14" fill="#ccd" font-family="Arial,sans-serif">${at}</text>
-    <text x="${awayBoxX+boxW/2}" y="${boxY+63}" text-anchor="middle" font-size="32" font-weight="800" fill="#e74c3c" font-family="Arial,sans-serif">${opts.awayOdds.toFixed(2)}</text>
-    <text x="${awayBoxX}" y="${boxY+boxH+18}" font-size="12" fill="#99a" font-family="Arial,sans-serif">${opts.awayPct}%</text>
-    <rect x="${awayBoxX}" y="${awayBoxX>0?boxY+boxH+22:0}" width="${boxW}" height="5" rx="2.5" fill="#333"/>
-    <rect x="${awayBoxX}" y="${boxY+boxH+22}" width="${awayPW}" height="5" rx="2.5" fill="${opts.awayPct>35?"#2ecc71":"#e74c3c"}"/>
+    <rect x="${awayBoxX}" y="${boxY}" width="${boxW}" height="${boxH}" rx="14" fill="#12122a" opacity="0.9" ${awayStroke}/>
+    <text x="${awayBoxX + boxW / 2}" y="${boxY + 25}" text-anchor="middle" font-size="14" fill="#ccd" font-family="Arial,sans-serif">${at}</text>
+    <text x="${awayBoxX + boxW / 2}" y="${boxY + 63}" text-anchor="middle" font-size="32" font-weight="800" fill="#e74c3c" font-family="Arial,sans-serif">${opts.awayOdds.toFixed(2)}</text>
+    <text x="${awayBoxX}" y="${boxY + boxH + 18}" font-size="12" fill="#99a" font-family="Arial,sans-serif">${opts.awayPct}%</text>
+    <rect x="${awayBoxX}" y="${boxY + boxH + 22}" width="${boxW}" height="5" rx="2.5" fill="#333"/>
+    <rect x="${awayBoxX}" y="${boxY + boxH + 22}" width="${awayPW}" height="5" rx="2.5" fill="${opts.awayPct > 35 ? "#2ecc71" : "#e74c3c"}"/>
   </g>
 </svg>`;
 }
@@ -174,25 +169,6 @@ async function generateMatchPng(matchId: number): Promise<Buffer> {
     matchDate: new Date(match.matchDate), totalBets, mostBetted, hasBg,
   });
 
-  const composites: sharp.OverlayOptions[] = [];
-
-  if (hasBg) {
-    const bgPath = path.resolve(process.cwd(), "public", "match-bg", `${matchId}.jpg`);
-    try {
-      const bgBuf = await fs.readFile(bgPath);
-      const darkenedBg = await sharp(bgBuf)
-        .resize(W, H, { fit: "cover" })
-        .modulate({ brightness: 0.55 })
-        .blur(2)
-        .png()
-        .toBuffer();
-      composites.unshift({ input: darkenedBg, top: 0, left: 0 });
-    } catch {}
-  }
-
-  const uiBuf = await sharp(Buffer.from(svgStr)).resize(W, H).png().toBuffer();
-  composites.push({ input: uiBuf, top: 0, left: 0 });
-
   const homeCode = getCountryCode(match.homeTeam);
   const awayCode = getCountryCode(match.awayTeam);
 
@@ -201,24 +177,41 @@ async function generateMatchPng(matchId: number): Promise<Buffer> {
     awayCode ? fetchFlagBuffer(awayCode) : Promise.resolve(null),
   ]);
 
+  const flagComposites: sharp.OverlayOptions[] = [];
   if (homeFlagBuf) {
     const rf = await sharp(homeFlagBuf).resize(90, 68).png().toBuffer();
-    composites.push({ input: rf, top: 195, left: 75 });
+    flagComposites.push({ input: rf, top: 195, left: 75 });
   }
   if (awayFlagBuf) {
     const rf = await sharp(awayFlagBuf).resize(90, 68).png().toBuffer();
-    composites.push({ input: rf, top: 195, left: W - 165 });
+    flagComposites.push({ input: rf, top: 195, left: W - 165 });
   }
 
-  const baseImg = hasBg
-    ? await sharp({ create: { width: W, height: H, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 1 } } }).png().toBuffer()
-    : await sharp(Buffer.from(svgStr)).resize(W, H).png().toBuffer();
+  const uiBuf = await sharp(Buffer.from(svgStr)).resize(W, H).png().toBuffer();
 
-  const withBg = hasBg
-    ? await sharp(composites[0].input as Buffer).composite(composites.slice(1)).png().toBuffer()
-    : await sharp(uiBuf).composite(composites.slice(1)).png().toBuffer();
+  if (hasBg) {
+    const bgPath = path.resolve(process.cwd(), "public", "match-bg", `${matchId}.jpg`);
+    try {
+      const bgBuf = await fs.readFile(bgPath);
+      const darkenedBg = await sharp(bgBuf)
+        .resize(W, H, { fit: "cover" })
+        .modulate({ brightness: 0.55 })
+        .blur(2.5)
+        .jpeg({ quality: 90 })
+        .toBuffer();
 
-  return withBg;
+      const composites: sharp.OverlayOptions[] = [
+        { input: uiBuf, top: 0, left: 0 },
+        ...flagComposites,
+      ];
+
+      return await sharp(darkenedBg).composite(composites).png().toBuffer();
+    } catch (e) {
+      console.error("[bg load failed, fallback]", e);
+    }
+  }
+
+  return await sharp(uiBuf).composite(flagComposites).png().toBuffer();
 }
 
 router.get("/match-image/:matchId", async (req, res) => {

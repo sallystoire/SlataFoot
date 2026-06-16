@@ -1,42 +1,60 @@
-import { EmbedBuilder, type ChatInputCommandInteraction } from "discord.js";
+import { AttachmentBuilder, EmbedBuilder, type ChatInputCommandInteraction } from "discord.js";
 import { getOrCreateUser } from "../utils/getOrCreateUser.js";
 import { xpToNextLevel } from "../utils/coins.js";
-import { db, betsTable, usersTable } from "../db.js";
-import { eq, desc, sum } from "drizzle-orm";
+import { db, usersTable } from "../db.js";
 
-function makeBar(progress: number, total: number, length = 18): string {
-  const filled = Math.round((progress / total) * length);
-  return "▓".repeat(filled) + "░".repeat(length - filled);
-}
+const API_BASE = `https://${process.env.REPLIT_DOMAINS}`;
 
 export async function slashProfile(i: ChatInputCommandInteraction) {
+  await i.deferReply({ ephemeral: false });
+
   const target = i.options.getUser("user") ?? i.user;
   const user = await getOrCreateUser(target);
 
-  const { level, progress, needed } = xpToNextLevel(user.xp);
-  const bar = makeBar(progress, needed);
-  const total = user.wonBets + user.lostBets;
-  const winRate = total > 0 ? Math.round((user.wonBets / total) * 100) : 0;
+  const avatarUrl = target.displayAvatarURL({ size: 256, extension: "png" });
+  const imageUrl = `${API_BASE}/api/profile-image/${target.id}?avatar=${encodeURIComponent(avatarUrl)}&t=${Date.now()}`;
 
-  const embed = new EmbedBuilder()
-    .setTitle(`👤 Profil de ${target.username}`)
-    .setColor(0xf39c12)
-    .setThumbnail(target.displayAvatarURL({ size: 256 }))
-    .addFields(
-      { name: "🪙 Coins", value: `**${user.coins.toLocaleString("fr-FR")} 🪙**`, inline: true },
-      { name: "⭐ Niveau", value: `**${level}**`, inline: true },
-      { name: "✨ XP", value: `**${user.xp}**`, inline: true },
-      { name: `📊 Progression → Niv. ${level + 1}`, value: `\`${bar}\` ${progress}/${needed} XP`, inline: false },
-      { name: "🎫 Tickets", value: `**${user.totalTickets}**`, inline: true },
-      { name: "✅ Gagnés", value: `**${user.wonBets}**`, inline: true },
-      { name: "❌ Perdus", value: `**${user.lostBets}**`, inline: true },
-      { name: "📈 Win rate", value: `**${winRate}%**`, inline: true },
-      { name: "🤝 Filleuls", value: `**${user.referralCount}**`, inline: true },
-    )
-    .setFooter({ text: `Membre depuis ${new Date(user.createdAt).toLocaleDateString("fr-FR")}` })
-    .setTimestamp();
+  try {
+    const res = await fetch(imageUrl, { signal: AbortSignal.timeout(15000) });
+    if (!res.ok) throw new Error(`API ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    const attachment = new AttachmentBuilder(buf, { name: "profile.png" });
 
-  await i.reply({ embeds: [embed], ephemeral: true });
+    const { level } = xpToNextLevel(user.xp);
+    const embed = new EmbedBuilder()
+      .setTitle(`👤 ${target.username}`)
+      .setColor(0x4f5fdb)
+      .setImage("attachment://profile.png")
+      .setFooter({ text: `SlataFoot ⚽ — Niveau ${level}` })
+      .setTimestamp();
+
+    await i.editReply({ embeds: [embed], files: [attachment] });
+  } catch (e) {
+    console.error("[slashProfile image]", e);
+    const { level, progress, needed } = xpToNextLevel(user.xp);
+    const total = user.wonBets + user.lostBets;
+    const winRate = total > 0 ? Math.round((user.wonBets / total) * 100) : 0;
+    const bar = "▓".repeat(Math.round((progress / needed) * 18)) + "░".repeat(18 - Math.round((progress / needed) * 18));
+
+    const embed = new EmbedBuilder()
+      .setTitle(`👤 Profil de ${target.username}`)
+      .setColor(0xf39c12)
+      .setThumbnail(avatarUrl)
+      .addFields(
+        { name: "🪙 Coins", value: `**${user.coins.toLocaleString("fr-FR")} 🪙**`, inline: true },
+        { name: "⭐ Niveau", value: `**${level}**`, inline: true },
+        { name: `📊 XP → Niv. ${level + 1}`, value: `\`${bar}\` ${progress}/${needed}`, inline: false },
+        { name: "🎫 Tickets", value: `**${user.totalTickets}**`, inline: true },
+        { name: "✅ Gagnés", value: `**${user.wonBets}**`, inline: true },
+        { name: "❌ Perdus", value: `**${user.lostBets}**`, inline: true },
+        { name: "📈 Win rate", value: `**${winRate}%**`, inline: true },
+        { name: "🤝 Filleuls", value: `**${user.referralCount}**`, inline: true },
+      )
+      .setFooter({ text: `Membre depuis ${new Date(user.createdAt).toLocaleDateString("fr-FR")}` })
+      .setTimestamp();
+
+    await i.editReply({ embeds: [embed] });
+  }
 }
 
 export async function slashTop(i: ChatInputCommandInteraction) {

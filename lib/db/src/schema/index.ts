@@ -1,4 +1,4 @@
-import { pgTable, text, integer, boolean, timestamp, real, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, boolean, timestamp, real, serial, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -60,6 +60,19 @@ export const betsTable = pgTable("bets", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const couponsTable = pgTable("coupons", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => usersTable.id),
+  matchIds: jsonb("match_ids").notNull().$type<number[]>(),
+  betChoices: jsonb("bet_choices").notNull().$type<string[]>(),
+  matchLabels: jsonb("match_labels").notNull().$type<string[]>(),
+  combinedOdds: real("combined_odds").notNull(),
+  amount: integer("amount").notNull(),
+  potentialWin: real("potential_win").notNull(),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const settingsTable = pgTable("settings", {
   id: serial("id").primaryKey(),
   guildId: text("guild_id").notNull().unique(),
@@ -79,6 +92,7 @@ export type User = typeof usersTable.$inferSelect;
 export type Match = typeof matchesTable.$inferSelect;
 export type Scorer = typeof scorersTable.$inferSelect;
 export type Bet = typeof betsTable.$inferSelect;
+export type Coupon = typeof couponsTable.$inferSelect;
 export type Settings = typeof settingsTable.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertBet = z.infer<typeof insertBetSchema>;
