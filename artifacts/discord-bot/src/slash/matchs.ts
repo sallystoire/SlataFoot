@@ -4,8 +4,7 @@ import {
 } from "discord.js";
 import { eq } from "drizzle-orm";
 import { db, matchesTable } from "../db.js";
-
-const API_BASE = `https://${process.env.REPLIT_DOMAINS}`;
+import { getApiBase } from "../utils/apiBase.js";
 
 export async function sendMatchCard(
   channel: ChatInputCommandInteraction["channel"],
@@ -13,7 +12,7 @@ export async function sendMatchCard(
 ) {
   if (!channel || !channel.isTextBased()) return;
 
-  const imageUrl = `${API_BASE}/api/match-image/${match.id}?t=${Date.now()}`;
+  const imageUrl = `${getApiBase()}/api/match-image/${match.id}?t=${Date.now()}`;
 
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
@@ -60,7 +59,7 @@ export async function slashMatchs(i: ChatInputCommandInteraction) {
 
   if (matches.length === 0) return i.editReply("❌ Aucun match disponible. Utilise `/addmatch` pour en créer un.");
 
-  await i.editReply(`⏳ Génération de ${matches.length} card(s)...`);
+  await i.editReply(`⏳ Génération de ${Math.min(matches.length, 5)} card(s)...`);
 
   for (const match of matches.slice(0, 5)) {
     await sendMatchCard(i.channel, match);

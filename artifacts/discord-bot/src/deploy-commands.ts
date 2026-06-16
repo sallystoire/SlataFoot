@@ -7,8 +7,23 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName("matchs")
-    .setDescription("Affiche les matchs disponibles")
+    .setDescription("Affiche les cards des matchs à venir dans le salon")
     .addIntegerOption((o) => o.setName("id").setDescription("ID d'un match spécifique").setRequired(false)),
+
+  new SlashCommandBuilder()
+    .setName("matchslist")
+    .setDescription("Liste tous les matchs avec leur ID et statut (Admin)")
+    .setDefaultMemberPermissions("8")
+    .addStringOption((o) =>
+      o.setName("filtre")
+        .setDescription("Filtrer par statut")
+        .setRequired(false)
+        .addChoices(
+          { name: "Tous", value: "all" },
+          { name: "À venir", value: "upcoming" },
+          { name: "Terminés", value: "finished" },
+        )
+    ),
 
   new SlashCommandBuilder()
     .setName("buteur")
@@ -16,8 +31,14 @@ const commands = [
     .addIntegerOption((o) => o.setName("match_id").setDescription("ID du match").setRequired(false)),
 
   new SlashCommandBuilder()
+    .setName("listbuteurs")
+    .setDescription("Liste les buteurs d'un match avec leurs IDs (Admin)")
+    .setDefaultMemberPermissions("8")
+    .addIntegerOption((o) => o.setName("match_id").setDescription("ID du match").setRequired(true)),
+
+  new SlashCommandBuilder()
     .setName("ticket")
-    .setDescription("Voir tes paris en cours"),
+    .setDescription("Voir tes paris en cours avec image"),
 
   new SlashCommandBuilder()
     .setName("profile")
@@ -45,9 +66,7 @@ const commands = [
     .setName("settings")
     .setDescription("Configurer le bot (Admin)")
     .setDefaultMemberPermissions("8")
-    .addSubcommand((s) =>
-      s.setName("view").setDescription("Voir les paramètres actuels")
-    )
+    .addSubcommand((s) => s.setName("view").setDescription("Voir les paramètres actuels"))
     .addSubcommand((s) =>
       s.setName("voiceinterval")
         .setDescription("Intervalle vocal (minutes)")
@@ -75,23 +94,7 @@ const commands = [
     .addNumberOption((o) => o.setName("cote2").setDescription("Côte équipe 2").setRequired(true).setMinValue(1.01))
     .addStringOption((o) => o.setName("date").setDescription("Date du match (YYYY-MM-DDTHH:mm)").setRequired(true))
     .addStringOption((o) => o.setName("competition").setDescription("Nom de la compétition").setRequired(false))
-    .addAttachmentOption((o) => o.setName("image").setDescription("Image de fond du match (photo du joueur/stade)").setRequired(false)),
-
-  new SlashCommandBuilder()
-    .setName("addbuteur")
-    .setDescription("Ajouter un buteur à un match (Admin)")
-    .setDefaultMemberPermissions("8")
-    .addIntegerOption((o) => o.setName("match_id").setDescription("ID du match").setRequired(true))
-    .addStringOption((o) => o.setName("joueur").setDescription("Nom du joueur").setRequired(true))
-    .addStringOption((o) => o.setName("equipe").setDescription("Équipe du joueur").setRequired(true))
-    .addNumberOption((o) => o.setName("cote").setDescription("Côte buteur").setRequired(true).setMinValue(1.01)),
-
-  new SlashCommandBuilder()
-    .setName("resultat")
-    .setDescription("Définir le résultat d'un match (Admin)")
-    .setDefaultMemberPermissions("8")
-    .addIntegerOption((o) => o.setName("match_id").setDescription("ID du match").setRequired(true))
-    .addStringOption((o) => o.setName("score").setDescription("Score ex: 2-1 ou 'nul'").setRequired(true)),
+    .addAttachmentOption((o) => o.setName("image").setDescription("Image de fond du match").setRequired(false)),
 
   new SlashCommandBuilder()
     .setName("editmatch")
@@ -104,6 +107,36 @@ const commands = [
     .addStringOption((o) => o.setName("date").setDescription("Nouvelle date (YYYY-MM-DDTHH:mm)").setRequired(false))
     .addStringOption((o) => o.setName("competition").setDescription("Nom de la compétition").setRequired(false))
     .addAttachmentOption((o) => o.setName("image").setDescription("Nouvelle image de fond").setRequired(false)),
+
+  new SlashCommandBuilder()
+    .setName("deletematch")
+    .setDescription("Supprimer un match et rembourser les parieurs (Admin)")
+    .setDefaultMemberPermissions("8")
+    .addIntegerOption((o) => o.setName("match_id").setDescription("ID du match à supprimer").setRequired(true))
+    .addBooleanOption((o) => o.setName("forcer").setDescription("Confirmer si des paris sont en attente").setRequired(false)),
+
+  new SlashCommandBuilder()
+    .setName("addbuteur")
+    .setDescription("Ajouter un buteur à un match (Admin)")
+    .setDefaultMemberPermissions("8")
+    .addIntegerOption((o) => o.setName("match_id").setDescription("ID du match").setRequired(true))
+    .addStringOption((o) => o.setName("joueur").setDescription("Nom du joueur").setRequired(true))
+    .addStringOption((o) => o.setName("equipe").setDescription("Équipe du joueur").setRequired(true))
+    .addNumberOption((o) => o.setName("cote").setDescription("Côte buteur").setRequired(true).setMinValue(1.01)),
+
+  new SlashCommandBuilder()
+    .setName("deletebuteur")
+    .setDescription("Supprimer un buteur (Admin)")
+    .setDefaultMemberPermissions("8")
+    .addIntegerOption((o) => o.setName("buteur_id").setDescription("ID du buteur (voir /listbuteurs)").setRequired(false))
+    .addIntegerOption((o) => o.setName("match_id").setDescription("Supprimer TOUS les buteurs de ce match").setRequired(false)),
+
+  new SlashCommandBuilder()
+    .setName("resultat")
+    .setDescription("Définir le résultat d'un match (Admin)")
+    .setDefaultMemberPermissions("8")
+    .addIntegerOption((o) => o.setName("match_id").setDescription("ID du match").setRequired(true))
+    .addStringOption((o) => o.setName("score").setDescription("Score ex: 2-1 ou 'nul'").setRequired(true)),
 
   new SlashCommandBuilder()
     .setName("coupon")
@@ -132,7 +165,7 @@ async function deployCommands() {
 
   console.log(`🔄 Enregistrement de ${commands.length} slash commands...`);
   await rest.put(Routes.applicationCommands(clientId), { body: commands });
-  console.log("✅ Slash commands enregistrées globalement !");
+  console.log(`✅ ${commands.length} slash commands enregistrées globalement !`);
   process.exit(0);
 }
 

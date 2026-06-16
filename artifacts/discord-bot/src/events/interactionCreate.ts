@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 import { db, betsTable, matchesTable, usersTable, settingsTable } from "../db.js";
 import { getOrCreateUser } from "../utils/getOrCreateUser.js";
 import { updateLiveEmbed } from "../utils/liveEmbed.js";
-import { handleCouponButton, handleCouponModal } from "../slash/coupon.js";
+import { handleCouponButton, handleCouponModal, slashCoupon } from "../slash/coupon.js";
 
 import { slashHelp } from "../slash/help.js";
 import { slashMatchs } from "../slash/matchs.js";
@@ -19,9 +19,7 @@ import { slashParrainage, slashCode } from "../slash/parrainage.js";
 import { slashLive } from "../slash/live.js";
 import { slashSettings } from "../slash/settings.js";
 import { slashAddmatch, slashAddbuteur, slashResultat, slashEditmatch } from "../slash/addmatch.js";
-import { slashCoupon } from "../slash/coupon.js";
-
-const API_BASE = `https://${process.env.REPLIT_DOMAINS}`;
+import { slashMatchslist, slashDeletematch, slashDeletebuteur, slashListbuteurs } from "../slash/managematch.js";
 
 const couponState = new Map<string, Map<number, string>>();
 
@@ -47,21 +45,25 @@ export async function handleInteractionCreate(interaction: Interaction) {
 
 async function handleSlashCommand(i: ChatInputCommandInteraction) {
   switch (i.commandName) {
-    case "help":        return slashHelp(i);
-    case "matchs":      return slashMatchs(i);
-    case "buteur":      return slashButeur(i);
-    case "ticket":      return slashTicket(i);
-    case "profile":     return slashProfile(i);
-    case "top":         return slashTop(i);
-    case "parrainage":  return slashParrainage(i);
-    case "code":        return slashCode(i);
-    case "live":        return slashLive(i);
-    case "settings":    return slashSettings(i);
-    case "addmatch":    return slashAddmatch(i);
-    case "editmatch":   return slashEditmatch(i);
-    case "addbuteur":   return slashAddbuteur(i);
-    case "resultat":    return slashResultat(i);
-    case "coupon":      return slashCoupon(i);
+    case "help":          return slashHelp(i);
+    case "matchs":        return slashMatchs(i);
+    case "matchslist":    return slashMatchslist(i);
+    case "buteur":        return slashButeur(i);
+    case "listbuteurs":   return slashListbuteurs(i);
+    case "ticket":        return slashTicket(i);
+    case "profile":       return slashProfile(i);
+    case "top":           return slashTop(i);
+    case "parrainage":    return slashParrainage(i);
+    case "code":          return slashCode(i);
+    case "live":          return slashLive(i);
+    case "settings":      return slashSettings(i);
+    case "addmatch":      return slashAddmatch(i);
+    case "editmatch":     return slashEditmatch(i);
+    case "deletematch":   return slashDeletematch(i);
+    case "addbuteur":     return slashAddbuteur(i);
+    case "deletebuteur":  return slashDeletebuteur(i);
+    case "resultat":      return slashResultat(i);
+    case "coupon":        return slashCoupon(i);
     default:
       await i.reply({ content: "❌ Commande inconnue.", ephemeral: true });
   }
@@ -87,7 +89,6 @@ async function handleButton(interaction: ButtonInteraction) {
 
   const betLabel = type === "home" ? match.homeTeam : type === "away" ? match.awayTeam : "Match Nul";
   const odds = type === "home" ? match.homeOdds : type === "away" ? match.awayOdds : match.drawOdds;
-
   const user = await getOrCreateUser(interaction.user);
 
   const modal = new ModalBuilder()
