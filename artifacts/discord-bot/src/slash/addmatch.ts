@@ -36,10 +36,21 @@ function getEmoji(team: string): string {
 
 async function uploadBackground(matchId: number, imageUrl: string): Promise<string | null> {
   try {
+    // Download the image directly from Discord (the bot has immediate access)
+    const imgRes = await fetch(imageUrl, { signal: AbortSignal.timeout(15000) });
+    if (!imgRes.ok) {
+      console.error("[uploadBackground] Failed to fetch Discord image:", imgRes.status);
+      return null;
+    }
+    const imgBuf = Buffer.from(await imgRes.arrayBuffer());
+    const base64 = imgBuf.toString("base64");
+    const contentType = imgRes.headers.get("content-type") ?? "image/jpeg";
+
+    // Send the raw bytes as base64 so the API server doesn't need to re-fetch Discord CDN
     const uploadRes = await fetch(`${getApiBase()}/api/match-bg/upload`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ matchId, imageUrl }),
+      body: JSON.stringify({ matchId, imageData: base64, contentType }),
     });
     if (!uploadRes.ok) {
       console.error("[uploadBackground] HTTP", uploadRes.status, await uploadRes.text());
