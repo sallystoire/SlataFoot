@@ -1,0 +1,26 @@
+FROM node:20-slim AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable && corepack prepare pnpm@10.26.1 --activate
+
+FROM base AS deps
+WORKDIR /app
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY lib/db/package.json ./lib/db/
+COPY lib/api-spec/package.json ./lib/api-spec/
+COPY lib/api-zod/package.json ./lib/api-zod/
+COPY lib/api-client-react/package.json ./lib/api-client-react/
+COPY artifacts/discord-bot/package.json ./artifacts/discord-bot/
+COPY artifacts/api-server/package.json ./artifacts/api-server/
+COPY artifacts/mockup-sandbox/package.json ./artifacts/mockup-sandbox/
+COPY scripts/package.json ./scripts/
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+
+FROM base AS runner
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/artifacts/discord-bot/node_modules ./artifacts/discord-bot/node_modules
+COPY --from=deps /app/lib/db/node_modules ./lib/db/node_modules
+COPY . .
+
+CMD ["sh", "-c", "pnpm --filter @workspace/discord-bot exec tsx src/migrate.ts && pnpm --filter @workspace/discord-bot start"]

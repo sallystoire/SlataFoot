@@ -1,8 +1,7 @@
 [build]
-builder = "NIXPACKS"
-buildCommand = "npm install -g pnpm && pnpm install --frozen-lockfile"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.discord-bot"
 
 [deploy]
-startCommand = "pnpm --filter @workspace/discord-bot exec tsx src/migrate.ts && pnpm --filter @workspace/discord-bot start"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5
