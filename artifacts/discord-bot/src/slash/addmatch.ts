@@ -3,7 +3,7 @@ import {
 } from "discord.js";
 import { eq } from "drizzle-orm";
 import { db, matchesTable, scorersTable } from "../db.js";
-import { sendMatchCard } from "./matchs.js";
+import { sendMatchCard, buildMatchEmbed } from "./matchs.js";
 import { getApiBase } from "../utils/apiBase.js";
 
 const TEAM_COUNTRY: Record<string, string> = {
@@ -36,12 +36,15 @@ function getEmoji(team: string): string {
 
 async function uploadBackground(matchId: number, imageUrl: string): Promise<string | null> {
   try {
-    const uploadRes = await fetch(`http://localhost:${process.env.PORT ?? 8080}/api/match-bg/upload`, {
+    const uploadRes = await fetch(`${getApiBase()}/api/match-bg/upload`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ matchId, imageUrl }),
     });
-    if (!uploadRes.ok) return null;
+    if (!uploadRes.ok) {
+      console.error("[uploadBackground] HTTP", uploadRes.status, await uploadRes.text());
+      return null;
+    }
     const data = await uploadRes.json() as { url?: string };
     return data.url ?? null;
   } catch (e) {
@@ -142,7 +145,7 @@ export async function slashEditmatch(i: ChatInputCommandInteraction) {
 
   const updated = await db.query.matchesTable.findFirst({ where: eq(matchesTable.id, matchId) });
 
-  const embed = new EmbedBuilder()
+  const confirmEmbed = new EmbedBuilder()
     .setTitle(`✏️ Match #${matchId} mis à jour`)
     .setColor(0x3498db)
     .addFields(
@@ -153,7 +156,20 @@ export async function slashEditmatch(i: ChatInputCommandInteraction) {
     )
     .setTimestamp();
 
-  await i.editReply({ embeds: [embed] });
+  await i.editReply({ embeds: [confirmEmbed] });
+
+  if (updated?.cardMessageId && updated?.cardChannelId) {
+    try {
+      const channel = await i.client.channels.fetch(updated.cardChannelId);
+      if (channel && channel.isTextBased()) {
+        const msg = await (channel as import("discord.js").TextChannel).messages.fetch(updated.cardMessageId);
+        const { embed: cardEmbed, row } = buildMatchEmbed(updated);
+        await msg.edit({ embeds: [cardEmbed], components: [row] });
+      }
+    } catch (e) {
+      console.error("[editmatch card refresh]", e);
+    }
+  }
 }
 
 export async function slashAddbuteur(i: ChatInputCommandInteraction) {
