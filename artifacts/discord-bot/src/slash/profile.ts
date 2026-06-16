@@ -2,8 +2,7 @@ import { AttachmentBuilder, EmbedBuilder, type ChatInputCommandInteraction } fro
 import { getOrCreateUser } from "../utils/getOrCreateUser.js";
 import { xpToNextLevel } from "../utils/coins.js";
 import { db, usersTable } from "../db.js";
-
-const API_BASE = `https://${process.env.REPLIT_DOMAINS}`;
+import { getApiBase } from "../utils/apiBase.js";
 
 export async function slashProfile(i: ChatInputCommandInteraction) {
   await i.deferReply({ ephemeral: false });
@@ -12,7 +11,7 @@ export async function slashProfile(i: ChatInputCommandInteraction) {
   const user = await getOrCreateUser(target);
 
   const avatarUrl = target.displayAvatarURL({ size: 256, extension: "png" });
-  const imageUrl = `${API_BASE}/api/profile-image/${target.id}?avatar=${encodeURIComponent(avatarUrl)}&t=${Date.now()}`;
+  const imageUrl = `${getApiBase()}/api/profile-image/${target.id}?avatar=${encodeURIComponent(avatarUrl)}&t=${Date.now()}`;
 
   try {
     const res = await fetch(imageUrl, { signal: AbortSignal.timeout(15000) });

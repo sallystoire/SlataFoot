@@ -7,8 +7,7 @@ import {
 } from "discord.js";
 import { db, matchesTable } from "../db.js";
 import { eq } from "drizzle-orm";
-
-const API_BASE = `https://${process.env.REPLIT_DOMAINS}`;
+import { getApiBase } from "../utils/apiBase.js";
 
 export async function matchsCommand(message: Message) {
   const matches = await db.query.matchesTable.findMany({
@@ -25,7 +24,7 @@ export async function matchsCommand(message: Message) {
   const sentMsg = await message.reply("⏳ Chargement des matchs...");
 
   for (const match of matches.slice(0, 5)) {
-    const imageUrl = `${API_BASE}/api/match-image/${match.id}?t=${Date.now()}`;
+    const imageUrl = `${getApiBase()}/api/match-image/${match.id}?t=${Date.now()}`;
 
     const embed = new EmbedBuilder()
       .setColor(0x5865f2)

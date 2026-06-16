@@ -4,8 +4,7 @@ import {
 import { eq } from "drizzle-orm";
 import { db, matchesTable, scorersTable } from "../db.js";
 import { sendMatchCard } from "./matchs.js";
-
-const API_BASE = `https://${process.env.REPLIT_DOMAINS}`;
+import { getApiBase } from "../utils/apiBase.js";
 
 const TEAM_COUNTRY: Record<string, string> = {
   france: "fr", portugal: "pt", espagne: "es", allemagne: "de",
