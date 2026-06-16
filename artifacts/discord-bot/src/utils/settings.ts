@@ -2,12 +2,7 @@ import { eq } from "drizzle-orm";
 import { db, settingsTable } from "../db.js";
 
 export async function getOrCreateSettings(guildId: string) {
-  const existing = await db.query.settingsTable.findFirst({
-    where: eq(settingsTable.guildId, guildId),
-  });
-  if (existing) return existing;
-
-  const [created] = await db
+  await db
     .insert(settingsTable)
     .values({
       guildId,
@@ -15,6 +10,11 @@ export async function getOrCreateSettings(guildId: string) {
       voiceCoinsAmount: 5,
       chatCoinsAmount: 1,
     })
-    .returning();
-  return created;
+    .onConflictDoNothing();
+
+  const existing = await db.query.settingsTable.findFirst({
+    where: eq(settingsTable.guildId, guildId),
+  });
+
+  return existing!;
 }

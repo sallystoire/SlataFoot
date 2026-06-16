@@ -5,13 +5,10 @@ import type { GuildMember, User as DJSUser } from "discord.js";
 
 export async function getOrCreateUser(discordUser: DJSUser | GuildMember) {
   const user = "user" in discordUser ? discordUser.user : discordUser;
-  const existing = await db.query.usersTable.findFirst({
-    where: eq(usersTable.discordId, user.id),
-  });
-  if (existing) return existing;
 
   const referralCode = generateReferralCode(user.id);
-  const [created] = await db
+
+  await db
     .insert(usersTable)
     .values({
       discordId: user.id,
@@ -27,6 +24,11 @@ export async function getOrCreateUser(discordUser: DJSUser | GuildMember) {
       isStreaming: false,
       hasCamera: false,
     })
-    .returning();
-  return created;
+    .onConflictDoNothing();
+
+  const existing = await db.query.usersTable.findFirst({
+    where: eq(usersTable.discordId, user.id),
+  });
+
+  return existing!;
 }
