@@ -9,6 +9,7 @@ import { db, betsTable, matchesTable, usersTable, settingsTable } from "../db.js
 import { getOrCreateUser } from "../utils/getOrCreateUser.js";
 import { updateLiveEmbed } from "../utils/liveEmbed.js";
 import { handleCouponButton, handleCouponModal, slashCoupon } from "../slash/coupon.js";
+import { buildMatchEmbed } from "../slash/matchs.js";
 
 import { slashHelp } from "../slash/help.js";
 import { slashMatchs } from "../slash/matchs.js";
@@ -146,6 +147,8 @@ async function handleModal(interaction: ModalSubmitInteraction) {
   await db.update(usersTable).set({ coins: user.coins - amount, totalTickets: user.totalTickets + 1 }).where(eq(usersTable.id, user.id));
   await db.insert(betsTable).values({ userId: user.id, matchId, betType: type, betValue, amount, odds, potentialWin, status: "pending" });
 
+  refreshMatchCard(interaction.client, match).catch(() => {});
+
   const confirmEmbed = new EmbedBuilder()
     .setTitle("🎰 Pari enregistré !")
     .setColor(0x2ecc71)
@@ -182,5 +185,22 @@ async function handleModal(interaction: ModalSubmitInteraction) {
         }
       } catch {}
     }
+  }
+}
+
+async function refreshMatchCard(client: import("discord.js").Client, match: typeof matchesTable.$inferSelect) {
+  if (!match.cardChannelId || !match.cardMessageId) return;
+
+  const freshMatch = await db.query.matchesTable.findFirst({ where: eq(matchesTable.id, match.id) });
+  if (!freshMatch) return;
+
+  try {
+    const channel = await client.channels.fetch(freshMatch.cardChannelId!);
+    if (!channel || !channel.isTextBased()) return;
+    const msg = await (channel as TextChannel).messages.fetch(freshMatch.cardMessageId!);
+    const { embed, row } = buildMatchEmbed(freshMatch);
+    await msg.edit({ embeds: [embed], components: [row] });
+  } catch (e) {
+    console.error("[refreshMatchCard]", e);
   }
 }

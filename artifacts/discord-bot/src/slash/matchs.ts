@@ -1,17 +1,12 @@
 import {
   EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
-  type ChatInputCommandInteraction,
+  type ChatInputCommandInteraction, type TextChannel,
 } from "discord.js";
 import { eq } from "drizzle-orm";
 import { db, matchesTable } from "../db.js";
 import { getApiBase } from "../utils/apiBase.js";
 
-export async function sendMatchCard(
-  channel: ChatInputCommandInteraction["channel"],
-  match: typeof matchesTable.$inferSelect,
-) {
-  if (!channel || !channel.isTextBased()) return;
-
+export function buildMatchEmbed(match: typeof matchesTable.$inferSelect): { embed: EmbedBuilder; row: ActionRowBuilder<ButtonBuilder> } {
   const imageUrl = `${getApiBase()}/api/match-image/${match.id}?t=${Date.now()}`;
 
   const embed = new EmbedBuilder()
@@ -34,7 +29,21 @@ export async function sendMatchCard(
       .setStyle(ButtonStyle.Danger),
   );
 
-  await (channel as import("discord.js").TextChannel).send({ embeds: [embed], components: [row] });
+  return { embed, row };
+}
+
+export async function sendMatchCard(
+  channel: ChatInputCommandInteraction["channel"],
+  match: typeof matchesTable.$inferSelect,
+) {
+  if (!channel || !channel.isTextBased()) return;
+
+  const { embed, row } = buildMatchEmbed(match);
+  const msg = await (channel as TextChannel).send({ embeds: [embed], components: [row] });
+
+  await db.update(matchesTable)
+    .set({ cardMessageId: msg.id, cardChannelId: channel.id })
+    .where(eq(matchesTable.id, match.id));
 }
 
 export async function slashMatchs(i: ChatInputCommandInteraction) {

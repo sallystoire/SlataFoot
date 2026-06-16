@@ -45,6 +45,8 @@ async function migrate() {
   `);
 
   await db.execute(sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS background_image_url TEXT`);
+  await db.execute(sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS card_message_id TEXT`);
+  await db.execute(sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS card_channel_id TEXT`);
 
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS scorers (
