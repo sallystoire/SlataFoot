@@ -144,8 +144,8 @@ function generateUISVG(opts: {
 
   <g clip-path="url(#cardClip)">
 
-    <!-- Background (dark if no image) -->
-    ${!opts.hasBg ? `<rect x="5" y="5" width="${W - 10}" height="${H - 10}" fill="url(#darkBg)"/>` : ""}
+    <!-- Always dark background as fallback (image composited on top by sharp) -->
+    <rect x="5" y="5" width="${W - 10}" height="${H - 10}" fill="url(#darkBg)"/>
 
     <!-- Bottom fade gradient over image -->
     <rect x="5" y="${fadeStart}" width="${W - 10}" height="${H - fadeStart}" fill="url(#fadeGrad)"/>

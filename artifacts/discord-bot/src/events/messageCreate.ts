@@ -11,6 +11,7 @@ export async function handleMessageCreate(message: Message) {
 
   const settings = await getOrCreateSettings(message.guild.id);
   const user = await getOrCreateUser(message.author);
+  if (!user) return;
   await db.update(usersTable).set({
     coins: user.coins + settings.chatCoinsAmount,
     xp: user.xp + 1,
