@@ -64,16 +64,16 @@ function generateUISVG(opts: {
   const badgeX = opts.mostBetted === "home" ? homeBoxX + boxW / 2 : opts.mostBetted === "draw" ? drawBoxX + boxW / 2 : awayBoxX + boxW / 2;
 
   const darkBgOverlay = opts.hasBg
-    ? `<rect x="5" y="5" width="${W - 10}" height="${H - 10}" rx="18" fill="rgba(0,0,0,0.35)"/>`
-    : `<rect x="5" y="5" width="${W - 10}" height="${H - 10}" rx="18" fill="url(#darkBg)"/>`;
+    ? `<rect x="5" y="5" width="${W - 10}" height="${H - 10}" rx="18" fill="rgba(0,0,0,0.45)"/>`
+    : ``;
 
   const baseBg = opts.hasBg
     ? ""
-    : `<rect width="${W}" height="${H}" rx="22" fill="#0d0d1a"/>`;
+    : `<rect width="${W}" height="${H}" rx="22" fill="url(#borderGrad)"/>`;
 
   const borderRect = opts.hasBg
     ? `<rect width="${W}" height="${H}" rx="22" fill="none" stroke="url(#borderGrad)" stroke-width="6"/>`
-    : `<rect width="${W}" height="${H}" rx="22" fill="url(#borderGrad)"/>`;
+    : ``;
 
   return `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
   <defs>

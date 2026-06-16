@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "-71dmc17EKPIAvAlUg-AV"
+uri = "file://attached_assets/preview_match_card.png"
+type = "image"
+title = "Carte match — fond arc-en-ciel (sans image uploadée)"
